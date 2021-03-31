@@ -1,0 +1,45 @@
+title: Looking for anomalies in Kerberos TGS requests
+description: |
+  'This query looks for all the Kerberos TGS requests a user is making in a typical hour from the past 30 days, and see from which service account, a TGS was requested.
+  It will baseline the results and show how many requests it was actually expecting. The higher the score is, the more chances it might be an anomaly.'
+advancedHuntingschema:
+  - m365_product: DefenderforIdentity
+    table:
+      - IdentityLogonEvents
+tactics:
+  - Credential Access
+relevantTechniques:
+  - T1558
+tags:
+  -
+query: |
+let starttime = 30d;
+let endtime = 1d;
+let timeframe = 1h;
+let TotalEventsThreshold = 3;
+let TimeSeriesData = 
+IdentityLogonEvents
+| where Timestamp between (startofday(ago(starttime))..startofday(ago(endtime)))
+| make-series PerHourCount=count() on Timestamp from startofday(ago(starttime)) to startofday(ago(endtime)) step timeframe by AccountName;
+let TimeSeriesAlerts=TimeSeriesData
+| extend (anomalies, score, baseline) = series_decompose_anomalies(PerHourCount, 1.5, -1, 'linefit')
+| mv-expand PerHourCount to typeof(double), Timestamp to typeof(datetime), anomalies to typeof(double),score to typeof(double), baseline to typeof(long)
+| where anomalies > 0
+| project AccountName, Timestamp, PerHourCount, baseline, anomalies, score
+| where PerHourCount > TotalEventsThreshold;
+TimeSeriesAlerts
+| join (
+IdentityLogonEvents
+| where AdditionalFields has 'TARGET_OBJECT.USER'
+| extend ParsedFields = parse_json(AdditionalFields)
+| extend Spns = ParsedFields.Spns
+| extend TargetAccountDisplayName = ParsedFields.TargetAccountDisplayName
+| summarize UserSpnCount=count(),Spns=make_set(Spns), TargetAccountDisplayName=make_set(TargetAccountDisplayName) by AccountName, bin(Timestamp, 1h)
+) on AccountName, Timestamp | extend AnomalyTimeattheHour = Timestamp
+| where isnotempty(AccountName)
+| where TargetAccountDisplayName contains 'srvc'
+| project AnomalyTimeattheHour, AccountName, TargetAccountDisplayName, PerHourCount, UserSpnCount, Spns, baseline, anomalies , score
+| sort by AnomalyTimeattheHour desc
+
+note:
+  - At line 40 of the query, make sure to replace 'srvc' with the naming convention of your service account. (e.g. 'svc_' or 'svc')
