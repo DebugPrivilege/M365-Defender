@@ -43,5 +43,6 @@ IdentityLogonEvents
 
 note:
   - At line 40 of the query, make sure to replace 'srvc' with the naming convention of your service account. (e.g. 'svc_' or 'svc').
-  - A disclaimer that this query looks at every hour for every user who is requesting a TGS in the past 30 days. Of course, you might run into some 'performance' issues,
-  when you run this query. It might take a few extra seconds, but you can fine-tune it by limiting it to 14 days for example or only looking at specific accounts, and so on. Like it makes sense, but some people aren't aware of it.
+  - This query looks at every hour for every user, who is requesting a TGS in the past 30 days. Of course, you might run into some 'performance' issues,
+  when you run this query. It might take a few extra seconds before the results are loading, but you can fine-tune it by limiting it to 14 days for example or only looking at specific accounts, and so on. 
+  Like it makes sense to me, but some people aren't aware of it.
